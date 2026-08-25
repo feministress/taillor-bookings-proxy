@@ -188,10 +188,14 @@ module.exports = async (req, res) => {
       `/item/field/${fieldId}/find?text=${encodeURIComponent(q.trim())}`
     );
 
-    // "find referenceable items" returns a flat array of { id, title, ... }
+    // "find referenceable items" returns a flat array — the exact shape for this
+    // field was never confirmed against a live response, so try the common key
+    // variants defensively and also surface the raw object (_raw) temporarily so
+    // we can see exactly what Podio actually sends and fix this precisely.
     const results = (Array.isArray(found) ? found : []).map((r) => ({
-      id: r.id,
-      name: r.title,
+      id: r.id ?? r.item_id ?? r.itemId ?? r.value?.id ?? null,
+      name: r.title ?? r.text ?? r.value?.title ?? null,
+      _raw: r, // TEMPORARY — remove once id/name keys are confirmed
     }));
 
     res.status(200).json({ results });
