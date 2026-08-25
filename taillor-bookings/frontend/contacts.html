@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Crown — Contacts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Playfair+Display:ital,wght@0,500;0,700;1,500;1,700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#000000;
+    --paper:#FFFFFF;
+    --grey:#6B6B6B;
+    --line:#E4E4E4;
+    --line-soft:#EFEFEF;
+    --red:#C0392B;
+    --green:#2FBE5B;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Space Grotesk',sans-serif;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:960px;margin:0 auto;padding:40px 24px 100px;}
+
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;}
+  .wordmark{font-family:'Archivo Black',sans-serif;font-size:11px;letter-spacing:0.14em;}
+  h1.page-title{font-family:'Archivo Black',sans-serif;font-size:clamp(32px,7vw,64px);line-height:0.95;margin:0 0 24px;letter-spacing:-0.01em;}
+
+  .search-row{margin-bottom:24px;}
+  .search-row input{width:100%;font-family:'Space Grotesk',sans-serif;font-size:16px;padding:14px 16px;border-radius:5px;border:1px solid var(--line);background:var(--paper);color:var(--ink);}
+  .search-row input:focus{outline:none;border-color:var(--ink);}
+  .search-hint{font-family:'Playfair Display',serif;font-style:italic;color:var(--grey);font-size:14px;margin-top:8px;}
+
+  .results{display:flex;flex-direction:column;gap:8px;}
+  .result-row{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:13px 16px;font-size:15px;cursor:pointer;transition:border-color .12s ease,background .12s ease;}
+  .result-row:hover{border-color:var(--ink);background:var(--line-soft);}
+  .state-msg{padding:60px 0;text-align:center;color:var(--grey);font-size:14px;}
+
+  /* Modal (matches New Booking modal exactly) */
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;z-index:40;}
+  .backdrop.open{display:block;}
+  .modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(92vw,480px);max-height:88vh;overflow-y:auto;background:var(--paper);border-radius:10px;padding:28px;z-index:50;display:none;box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+  .modal.open{display:block;}
+  .modal h3{font-family:'Archivo Black',sans-serif;font-size:18px;margin:0 0 6px;}
+  .modal .subhead{font-family:'Playfair Display',serif;font-style:italic;color:var(--grey);font-size:14px;margin:0 0 18px;}
+
+  .booking-count-pill{display:inline-block;font-family:'Archivo Black',sans-serif;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;padding:6px 14px;border-radius:999px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);margin-bottom:18px;}
+  .booking-count-pill.loading{background:var(--paper);color:var(--grey);border-color:var(--line);}
+
+  .field-row{padding:10px 0;border-bottom:1px solid var(--line-soft);}
+  .field-row:last-child{border-bottom:none;}
+  .field-row label{display:block;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;color:var(--grey);margin-bottom:4px;}
+  .field-row .val{font-size:15px;word-break:break-word;}
+  .field-row .val a{color:var(--ink);}
+
+  .tag-list{display:flex;flex-wrap:wrap;gap:6px;}
+  .tag{font-family:'Space Grotesk',sans-serif;font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--ink);}
+
+  .modal-actions{display:flex;gap:10px;margin-top:22px;}
+  .btn{font-family:'Archivo Black',sans-serif;font-size:11px;letter-spacing:0.05em;text-transform:uppercase;padding:11px 18px;border-radius:999px;border:1px solid var(--ink);cursor:pointer;flex:1;}
+  .btn.secondary{background:var(--paper);color:var(--ink);}
+  .btn.secondary:hover{opacity:0.7;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="wordmark">THE CROWN</div>
+  </div>
+  <h1 class="page-title">Contacts</h1>
+
+  <div class="search-row">
+    <input type="text" id="searchInput" placeholder="Search by name…" autocomplete="off">
+    <div class="search-hint">Start typing a name to search</div>
+  </div>
+
+  <div class="results" id="results"></div>
+</div>
+
+<div class="backdrop" id="backdrop" onclick="closeDetail()"></div>
+<div class="modal" id="modal">
+  <h3 id="detailName">—</h3>
+  <div class="subhead">Contact detail</div>
+  <div id="bookingCountPill" class="booking-count-pill loading">Loading booking count…</div>
+  <div id="detailBody"></div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeDetail()">Close</button>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'https://taillor-bookings-proxy.vercel.app';
+
+// ---- Search ----
+const searchInput = document.getElementById('searchInput');
+const resultsEl = document.getElementById('results');
+let searchTimer = null;
+let searchSeq = 0;
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = searchInput.value.trim();
+  if(!q){ resultsEl.innerHTML = ''; return; }
+  searchTimer = setTimeout(() => runSearch(q), 250);
+});
+
+async function runSearch(q){
+  const mySeq = ++searchSeq;
+  resultsEl.innerHTML = `<div class="state-msg">Searching…</div>`;
+  try{
+    const resp = await fetch(`${API_BASE}/api/contacts?q=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    if(mySeq !== searchSeq) return;
+    const results = data.results || [];
+    if(!results.length){
+      resultsEl.innerHTML = `<div class="state-msg">No contacts found.</div>`;
+      return;
+    }
+    resultsEl.innerHTML = '';
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'result-row';
+      row.textContent = r.name || '(no name)';
+      row.onclick = () => openDetail(r.id);
+      resultsEl.appendChild(row);
+    });
+  }catch(e){
+    if(mySeq !== searchSeq) return;
+    resultsEl.innerHTML = `<div class="state-msg">Error searching: ${e.message}</div>`;
+  }
+}
+
+// ---- Detail modal ----
+function closeDetail(){
+  document.getElementById('backdrop').classList.remove('open');
+  document.getElementById('modal').classList.remove('open');
+}
+
+async function openDetail(id){
+  document.getElementById('backdrop').classList.add('open');
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('detailName').textContent = 'Loading…';
+  document.getElementById('detailBody').innerHTML = '';
+  const pill = document.getElementById('bookingCountPill');
+  pill.className = 'booking-count-pill loading';
+  pill.textContent = 'Loading booking count…';
+
+  try{
+    const resp = await fetch(`${API_BASE}/api/contacts?id=${id}`);
+    const contact = await resp.json();
+    if(contact.error) throw new Error(contact.error);
+    renderDetail(contact);
+    fetchBookingCount(id);
+  }catch(e){
+    document.getElementById('detailName').textContent = 'Error';
+    document.getElementById('detailBody').innerHTML = `<div class="state-msg">${e.message}</div>`;
+  }
+}
+
+async function fetchBookingCount(id){
+  const pill = document.getElementById('bookingCountPill');
+  try{
+    const resp = await fetch(`${API_BASE}/api/contacts?id=${id}&withCount=1`);
+    const contact = await resp.json();
+    const count = contact.bookingCount;
+    pill.className = 'booking-count-pill';
+    pill.textContent = (count === null || count === undefined)
+      ? 'Booking count unavailable'
+      : `${count} booking${count === 1 ? '' : 's'} with us`;
+  }catch(e){
+    pill.className = 'booking-count-pill';
+    pill.textContent = 'Booking count unavailable';
+  }
+}
+
+function renderDetail(contact){
+  document.getElementById('detailName').textContent = contact.name || '(no name)';
+
+  let html = '';
+  html += fieldRow('Caller ID', contact.callerId);
+
+  if(contact.phones && contact.phones.length){
+    const val = contact.phones.map(p => `${p.value}${p.type ? ` (${p.type})` : ''}`).join('<br>');
+    html += fieldRow('Numbers', val, true);
+  }
+  if(contact.emails && contact.emails.length){
+    const val = contact.emails.map(e => `${e.value}${e.type ? ` (${e.type})` : ''}`).join('<br>');
+    html += fieldRow('Email', val, true);
+  }
+
+  html += fieldRow('Can we text him?', contact.canWeTextHim);
+
+  if(contact.work && contact.work.length){
+    const tags = contact.work.map(t => `<span class="tag">${t}</span>`).join('');
+    html += `<div class="field-row"><label>Work</label><div class="tag-list">${tags}</div></div>`;
+  }
+
+  html += fieldRow('Address', contact.address);
+
+  if(contact.website){
+    html += fieldRow('Links', `<a href="${contact.website}" target="_blank" rel="noopener">${contact.website}</a>`, true);
+  }
+
+  html += fieldRow('Notes', contact.notes);
+
+  document.getElementById('detailBody').innerHTML = html;
+}
+
+function fieldRow(label, value, isHtml){
+  if(!value) return '';
+  return `<div class="field-row"><label>${label}</label><div class="val">${isHtml ? value : escapeHtml(value)}</div></div>`;
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
