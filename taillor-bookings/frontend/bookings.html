@@ -378,8 +378,20 @@ async function submitBooking(){
   const dommeId = dommeText ? dommeLabelToId[dommeText] : undefined;
   const clientId = clientText ? clientLabelToId[clientText] : undefined;
 
+  if (!dommeText){
+    errEl.textContent = 'Domme is required.';
+    errEl.classList.add('show');
+    resetBookBtn();
+    return;
+  }
   if (dommeText && !dommeId){
     errEl.textContent = `"${dommeText}" isn't a Domme from the list — pick one from the dropdown suggestions.`;
+    errEl.classList.add('show');
+    resetBookBtn();
+    return;
+  }
+  if (!clientText){
+    errEl.textContent = 'Client is required.';
     errEl.classList.add('show');
     resetBookBtn();
     return;
