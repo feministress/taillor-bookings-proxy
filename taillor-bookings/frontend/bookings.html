@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Crown — Playroom</title>
+<link rel="icon" id="favicon" href="https://raw.githubusercontent.com/feministress/taillor-calendar-page/refs/heads/main/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Playfair+Display:ital,wght@0,500;0,700;1,500;1,700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -144,6 +145,34 @@
   <div class="form-error" id="formError"></div>
   <div class="form-success" id="formSuccess"></div>
 </div>
+
+<script>
+// Recolors the crown logo for this page's favicon. Reusable across other taillors
+// pages by copying this function and calling it with a different hex color — e.g.
+// a different tint per tool (bookings vs. a future contacts lookup, etc.) so tabs
+// are visually distinguishable at a glance.
+function setTintedFavicon(color){
+  const img = new Image();
+  img.crossOrigin = 'anonymous'; // raw.githubusercontent.com serves CORS headers, so this is safe
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    document.getElementById('favicon').href = canvas.toDataURL('image/png');
+  };
+  img.onerror = () => {
+    // If tinting fails for any reason (CORS hiccup, etc.), the plain logo set in
+    // the <link> tag above stays as the favicon — never worse than untinted.
+  };
+  img.src = 'https://raw.githubusercontent.com/feministress/taillor-calendar-page/refs/heads/main/logo.png';
+}
+setTintedFavicon('#B8860B'); // gold, for the Playroom bookings page
+</script>
 
 <script>
 // ---- CONFIGURE THIS after you deploy the Vercel project ----
