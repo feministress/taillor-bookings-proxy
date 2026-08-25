@@ -47,6 +47,10 @@ module.exports = async (req, res) => {
         res.status(400).json({ error: 'start and end are required, format "YYYY-MM-DD HH:MM:SS" (UTC)' });
         return;
       }
+      if (!dommeId || !clientId) {
+        res.status(400).json({ error: 'dommeId and clientId are both required — a booking must have a Domme and a Client attached.' });
+        return;
+      }
 
       const newStart = parsePodioUtc(start);
       const newEnd = parsePodioUtc(end);
