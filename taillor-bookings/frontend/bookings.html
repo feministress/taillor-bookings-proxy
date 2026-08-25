@@ -139,7 +139,7 @@
 
   <div class="modal-actions">
     <button class="btn secondary" onclick="closeModal()">Cancel</button>
-    <button class="btn primary" onclick="submitBooking()">Book</button>
+    <button class="btn primary" id="book-btn" onclick="submitBooking()">Book</button>
   </div>
   <div class="form-error" id="formError"></div>
   <div class="form-success" id="formSuccess"></div>
@@ -318,6 +318,9 @@ function openNewBooking(){
   document.getElementById('formSuccess').classList.remove('show');
   document.getElementById('f-domme').value = '';
   document.getElementById('f-client').value = '';
+  const bookBtn = document.getElementById('book-btn');
+  bookBtn.disabled = false;
+  bookBtn.textContent = 'Book';
   const d = window.__prefillDate || new Date();
   document.getElementById('f-date').value = d.toISOString().slice(0,10);
   document.getElementById('backdrop').classList.add('open');
@@ -332,7 +335,18 @@ function toPodioUtcString(dateObj){
   return dateObj.toISOString().slice(0,19).replace('T',' ');
 }
 
+function resetBookBtn(){
+  const btn = document.getElementById('book-btn');
+  btn.disabled = false;
+  btn.textContent = 'Book';
+}
+
 async function submitBooking(){
+  const btn = document.getElementById('book-btn');
+  if (btn.disabled) return; // guards against a second click firing while the first request is still in flight
+  btn.disabled = true;
+  btn.textContent = 'Booking…';
+
   const errEl = document.getElementById('formError');
   const okEl = document.getElementById('formSuccess');
   errEl.classList.remove('show'); okEl.classList.remove('show');
@@ -346,11 +360,13 @@ async function submitBooking(){
   if(!dateVal || !timeVal){
     errEl.textContent = 'Date and start time are required.';
     errEl.classList.add('show');
+    resetBookBtn();
     return;
   }
   if(durationMin <= 0){
     errEl.textContent = 'Duration must be more than 0 minutes.';
     errEl.classList.add('show');
+    resetBookBtn();
     return;
   }
 
@@ -365,11 +381,13 @@ async function submitBooking(){
   if (dommeText && !dommeId){
     errEl.textContent = `"${dommeText}" isn't a Domme from the list — pick one from the dropdown suggestions.`;
     errEl.classList.add('show');
+    resetBookBtn();
     return;
   }
   if (clientText && !clientId){
     errEl.textContent = `"${clientText}" isn't a Client from the list — pick one from the dropdown suggestions.`;
     errEl.classList.add('show');
+    resetBookBtn();
     return;
   }
 
@@ -394,11 +412,13 @@ async function submitBooking(){
     if(resp.status === 409){
       errEl.textContent = data.error + (data.conflictingBooking ? ` (conflicts with ${data.conflictingBooking.client || 'existing booking'} at ${data.conflictingBooking.start})` : '');
       errEl.classList.add('show');
+      resetBookBtn();
       return;
     }
     if(!resp.ok){
       errEl.textContent = data.error || `Server error (${resp.status})`;
       errEl.classList.add('show');
+      resetBookBtn();
       return;
     }
     okEl.textContent = 'Booked!';
@@ -408,6 +428,7 @@ async function submitBooking(){
   }catch(e){
     errEl.textContent = 'Network error: ' + e.message;
     errEl.classList.add('show');
+    resetBookBtn();
   }
 }
 
