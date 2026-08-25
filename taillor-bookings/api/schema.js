@@ -5,7 +5,15 @@
 // app definition so we never have to hardcode option IDs:
 //   { room: [...], shadowable: [...], deposit: [...], dommes: [...], clients: [...] }
 
-const { podioRequest, PODIO_APP_ID } = require('../lib/podio');
+const {
+  podioRequest,
+  podioRequestAs,
+  PODIO_APP_ID,
+  PODIO_DOMME_APP_ID,
+  PODIO_DOMME_APP_TOKEN,
+  PODIO_CONTACTS_APP_ID,
+  PODIO_CONTACTS_APP_TOKEN,
+} = require('../lib/podio');
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -33,17 +41,12 @@ module.exports = async (req, res) => {
     const roomField = findField('room');
     const shadowableField = findField('is-it-shadowable');
     const depositField = findField('have-you-received-a-deposit');
-    const dommeField = findField('domme');
-    const clientField = findField('relationship');
 
     const optionsOf = (field) => (field?.config?.settings?.options || []).map((o) => ({ id: o.id, text: o.text }));
 
-    const dommeAppIds = dommeField?.config?.settings?.referenced_apps || [];
-    const clientAppIds = clientField?.config?.settings?.referenced_apps || [];
-
     const [dommes, clients] = await Promise.all([
-      fetchItemTitles(dommeAppIds[0]),
-      fetchItemTitles(clientAppIds[0]),
+      fetchItemTitles(PODIO_DOMME_APP_ID, PODIO_DOMME_APP_TOKEN),
+      fetchItemTitles(PODIO_CONTACTS_APP_ID, PODIO_CONTACTS_APP_TOKEN),
     ]);
 
     res.status(200).json({
@@ -58,10 +61,10 @@ module.exports = async (req, res) => {
   }
 };
 
-async function fetchItemTitles(appId) {
-  if (!appId) return [];
+async function fetchItemTitles(appId, appToken) {
+  if (!appId || !appToken) return [];
   try {
-    const data = await podioRequest(`/item/app/${appId}/filter`, {
+    const data = await podioRequestAs(appId, appToken, `/item/app/${appId}/filter`, {
       method: 'POST',
       body: JSON.stringify({ limit: 500, sort_by: 'title' }),
     });
