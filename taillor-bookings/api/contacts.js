@@ -136,6 +136,52 @@ function parseContact(item) {
   };
 }
 
+// ---- Booking list for a contact --------------------------------------------
+// Reuses the exact field shapes confirmed working in api/bookings.js's own
+// parseBookingItem — domme/client relationship values are { item_id, title },
+// date values are { start, end } directly on values[0] (not nested under
+// .value), category fields (room, shadowable, deposit) are { id, text }.
+
+function parsePodioUtc(str) {
+  if (!str) return null;
+  const iso = str.replace(' ', 'T') + 'Z';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function parseBookingForContact(item) {
+  const getField = (extId) => (item.fields || []).find((f) => f.external_id === extId);
+
+  const dateField = getField('date');
+  const roomField = getField('room');
+  const dommeField = getField('domme');
+  const shadowableField = getField('is-it-shadowable');
+  const depositField = getField('have-you-received-a-deposit');
+  const preNotesField = getField('pre-session-notes');
+  const postNotesField = getField('notes');
+
+  const dateVal = dateField?.values?.[0] || {};
+  const startRaw = dateVal.start || null;
+  const endRaw = dateVal.end || null;
+
+  const roomVal = roomField?.values?.[0]?.value;
+  const dommeVal = dommeField?.values?.[0]?.value;
+  const shadowableVal = shadowableField?.values?.[0]?.value;
+  const depositVal = depositField?.values?.[0]?.value;
+
+  return {
+    id: item.item_id,
+    start: startRaw ? parsePodioUtc(startRaw) : null,
+    end: endRaw ? parsePodioUtc(endRaw) : null,
+    room: roomVal?.text || null,
+    dommeTitle: dommeVal?.title || null,
+    shadowable: shadowableVal?.text || null,
+    depositReceived: depositVal?.text || null,
+    preSessionNotes: preNotesField?.values?.[0]?.value || null,
+    postSessionNotes: postNotesField?.values?.[0]?.value || null,
+  };
+}
+
 // ---- Handler ----------------------------------------------------------------
 
 module.exports = async (req, res) => {
@@ -167,10 +213,17 @@ module.exports = async (req, res) => {
           method: 'POST',
           body: JSON.stringify({
             filters: { [fieldId]: [Number(id)] },
-            limit: 1, // we only need the total count, not the items
+            limit: 500,
+            sort_by: 'created_on',
+            sort_desc: true,
           }),
         });
-        contact.bookingCount = filterResult.total ?? filterResult.filtered ?? null;
+        // Podio's filter response has TWO counts: "total" = every item in the
+        // whole app (unfiltered), "filtered" = only the ones matching our filter.
+        // This was backwards before (total ?? filtered), which is why a contact
+        // was showing the entire app's booking count instead of their own.
+        contact.bookingCount = filterResult.filtered ?? filterResult.total ?? null;
+        contact.bookings = (filterResult.items || []).map(parseBookingForContact);
       }
 
       res.status(200).json(contact);
@@ -188,14 +241,12 @@ module.exports = async (req, res) => {
       `/item/field/${fieldId}/find?text=${encodeURIComponent(q.trim())}`
     );
 
-    // "find referenceable items" returns a flat array — the exact shape for this
-    // field was never confirmed against a live response, so try the common key
-    // variants defensively and also surface the raw object (_raw) temporarily so
-    // we can see exactly what Podio actually sends and fix this precisely.
+    // CONFIRMED shape (matches search-reference.js, which already works in
+    // production): "find referenceable items" returns { item_id, title }, not
+    // { id, title }. That was the actual bug — fixed now, debug field removed.
     const results = (Array.isArray(found) ? found : []).map((r) => ({
-      id: r.id ?? r.item_id ?? r.itemId ?? r.value?.id ?? null,
-      name: r.title ?? r.text ?? r.value?.title ?? null,
-      _raw: r, // TEMPORARY — remove once id/name keys are confirmed
+      id: r.item_id,
+      name: r.title,
     }));
 
     res.status(200).json({ results });
