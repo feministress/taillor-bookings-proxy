@@ -45,6 +45,12 @@
   .booking-count-pill{display:inline-block;font-family:'Archivo Black',sans-serif;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;padding:6px 14px;border-radius:999px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);margin-bottom:18px;}
   .booking-count-pill.loading{background:var(--paper);color:var(--grey);border-color:var(--line);}
 
+  .booking-list{margin-bottom:18px;}
+  .booking-list h4{font-family:'Archivo Black',sans-serif;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:var(--grey);margin:0 0 8px;}
+  .booking-row{background:var(--line-soft);border-radius:6px;padding:10px 12px;margin-bottom:8px;font-size:13px;}
+  .booking-row .bt{font-weight:600;}
+  .booking-row .bm{color:var(--grey);font-size:12px;margin-top:2px;}
+
   .field-row{padding:10px 0;border-bottom:1px solid var(--line-soft);}
   .field-row:last-child{border-bottom:none;}
   .field-row label{display:block;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;color:var(--grey);margin-bottom:4px;}
@@ -80,6 +86,7 @@
   <h3 id="detailName">—</h3>
   <div class="subhead">Contact detail</div>
   <div id="bookingCountPill" class="booking-count-pill loading">Loading booking count…</div>
+  <div id="bookingListSlot"></div>
   <div id="detailBody"></div>
   <div class="modal-actions">
     <button class="btn secondary" onclick="closeDetail()">Close</button>
@@ -165,40 +172,60 @@ async function fetchBookingCount(id){
     pill.textContent = (count === null || count === undefined)
       ? 'Booking count unavailable'
       : `${count} booking${count === 1 ? '' : 's'} with us`;
+
+    renderBookingList(contact.bookings || []);
   }catch(e){
     pill.className = 'booking-count-pill';
     pill.textContent = 'Booking count unavailable';
   }
 }
 
+function renderBookingList(bookings){
+  const target = document.getElementById('bookingListSlot');
+  if(!bookings.length){
+    target.innerHTML = '';
+    return;
+  }
+  const rows = bookings.map(b => {
+    const start = b.start ? new Date(b.start) : null;
+    const end = b.end ? new Date(b.end) : null;
+    const dateLabel = start ? start.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) : 'Unknown date';
+    const t1 = start ? start.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+    const t2 = end ? end.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+    const domme = b.dommeTitle || '—';
+    return `<div class="booking-row">
+      <div class="bt">${dateLabel}${t1 ? ' · '+t1+(t2?' – '+t2:'') : ''}</div>
+      <div class="bm">Domme: ${domme}${b.room ? ' · '+b.room : ''}</div>
+    </div>`;
+  }).join('');
+  target.innerHTML = `<div class="booking-list"><h4>Bookings</h4>${rows}</div>`;
+}
+
 function renderDetail(contact){
   document.getElementById('detailName').textContent = contact.name || '(no name)';
 
+  // Bookings matter most here — everything else is often left blank by whoever
+  // entered the contact, so it's secondary.
   let html = '';
-  html += fieldRow('Caller ID', contact.callerId);
 
   if(contact.phones && contact.phones.length){
     const val = contact.phones.map(p => `${p.value}${p.type ? ` (${p.type})` : ''}`).join('<br>');
     html += fieldRow('Numbers', val, true);
   }
+  html += fieldRow('Caller ID', contact.callerId);
   if(contact.emails && contact.emails.length){
     const val = contact.emails.map(e => `${e.value}${e.type ? ` (${e.type})` : ''}`).join('<br>');
     html += fieldRow('Email', val, true);
   }
-
   html += fieldRow('Can we text him?', contact.canWeTextHim);
-
   if(contact.work && contact.work.length){
     const tags = contact.work.map(t => `<span class="tag">${t}</span>`).join('');
     html += `<div class="field-row"><label>Work</label><div class="tag-list">${tags}</div></div>`;
   }
-
   html += fieldRow('Address', contact.address);
-
   if(contact.website){
     html += fieldRow('Links', `<a href="${contact.website}" target="_blank" rel="noopener">${contact.website}</a>`, true);
   }
-
   html += fieldRow('Notes', contact.notes);
 
   document.getElementById('detailBody').innerHTML = html;
